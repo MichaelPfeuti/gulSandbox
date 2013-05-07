@@ -1,0 +1,3 @@
+[submodule "libs/gul"]
+	path = libs/gul
+	url = http://git.ganymede.ch/repos/gul
