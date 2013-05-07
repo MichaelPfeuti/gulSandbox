@@ -4,8 +4,8 @@ project(gulSandbox)
 include(libs/gul/tools/CMake/gulProject.cmake)
 
 gul_setup_project()
-gul_create_astyle_target()
-gul_create_doxygen_target()
+#gul_create_astyle_target()
+#gul_create_doxygen_target()
 
 # include files
 include_directories("${CMAKE_HOME_DIRECTORY}/libs/gul/include")
