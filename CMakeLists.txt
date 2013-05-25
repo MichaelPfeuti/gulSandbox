@@ -23,7 +23,7 @@ include_directories("${CMAKE_HOME_DIRECTORY}/libs/gul/include/memory")
 include_directories("${CMAKE_HOME_DIRECTORY}/libs/gul/include/persistance")
 include_directories("${CMAKE_HOME_DIRECTORY}/libs/gul/include/video")
 include_directories("${CMAKE_HOME_DIRECTORY}/libs/gul/include/video/manipulator")
-#include_directories("${CMAKE_BINARY_DIR}/libs/gul/src")
+include_directories("${CMAKE_BINARY_DIR}/libs/gul/src")
 
 add_subdirectory(libs/gul)
 add_subdirectory(src)
