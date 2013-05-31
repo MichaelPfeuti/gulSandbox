@@ -1,11 +1,16 @@
+#include <AL/al.h>
+#include <AL/alc.h>
+#include <AL/alext.h>
 #include <GL/glew.h>
 #include <GL/glfw.h>
 #include <cstdio>
 #include <string>
 #include <fstream>
 #include <vector>
-#include <VideoLoader.h>
+#include <MediaReader.h>
 #include <VideoFrame.h>
+#include <AudioFrame.h>
+#include <MediaFrame.h>
 
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path)
 {
@@ -100,8 +105,35 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 	return ProgramID;
 }
 
+
+
+
+
+
+
+
+#define CHECK_ERROR() \
+  if ((error = alGetError()) != AL_NO_ERROR) { \
+    fprintf(stderr, "\n%d\n\n", error); \
+    return -1; \
+  }
+
+
+
+
 int main(void)
 {
+  int error;
+  ALCdevice* device = alcOpenDevice(NULL);
+  ALCcontext* context = alcCreateContext(device,NULL);
+  alcMakeContextCurrent(context);
+  alGetError();
+  ALuint source;
+  alGenSources(1,&source);
+  CHECK_ERROR();
+
+
+
   // Initialise GLFW
   if( !glfwInit() )
   {
@@ -179,63 +211,100 @@ int main(void)
   glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
   glBufferData(GL_ARRAY_BUFFER, sizeof(g_uv_buffer_data), g_uv_buffer_data, GL_STATIC_DRAW);
 
-  gul::VideoLoader loader(gul::String("in.avi"));
-  loader.OpenVideo();
-  gul::VideoFrame frame;
+  gul::MediaReader loader(gul::String("/home/pfeuti/Code/gul/test/data/video/firefly_long.mov"));
+  loader.Open();
+  gul::MediaFrame frame;
 
   int i = 0;
   do
   {
-      float duration = frame.GetPresentationTime() - glfwGetTime();
-      if(duration > 0)
-        glfwSleep(duration);
 
-          loader.GetNext(frame);
-          glClear( GL_COLOR_BUFFER_BIT );
+      loader.GetNext(frame);
+      if(frame.HasVideoFrame())
+      {
+          float duration = frame.GetVideoFrame().GetPresentationTime() - glfwGetTime();
+          if(duration > 0)
 
-          glUseProgram(programID);
+            glfwSleep(duration);
+        glClear( GL_COLOR_BUFFER_BIT );
 
-	  glActiveTexture(GL_TEXTURE0);
-	  glBindTexture(GL_TEXTURE_2D, tex);
-	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	  glTexImage2D(GL_TEXTURE_2D, 0,GL_RGBA, frame.GetWidth(), frame.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.GetDataConst());
+        glUseProgram(programID);
 
-	  glUniform1i(TextureID, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0,GL_RGBA, frame.GetVideoFrame().GetWidth(), frame.GetVideoFrame().GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.GetVideoFrame().GetDataConst());
 
-	  // 1rst attribute buffer : vertices
-	  glEnableVertexAttribArray(0);
-	  glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-	  glVertexAttribPointer(
-		  0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
-		  3,                  // size
-		  GL_FLOAT,           // type
-		  GL_FALSE,           // normalized?
-		  0,                  // stride
-		  (void*)0            // array buffer offset
-	  );
+        glUniform1i(TextureID, 0);
 
-	  glEnableVertexAttribArray(1);
-	  glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-	  glVertexAttribPointer(
-		  1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
-		  2,                                // size : U+V => 2
-		  GL_FLOAT,                         // type
-		  GL_FALSE,                         // normalized?
-		  0,                                // stride
-		  (void*)0                          // array buffer offset
-	  );
+        // 1rst attribute buffer : vertices
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+        glVertexAttribPointer(
+                0,                  // attribute 0. No particular reason for 0, but must match the layout in the shader.
+                3,                  // size
+                GL_FLOAT,           // type
+                GL_FALSE,           // normalized?
+                0,                  // stride
+                (void*)0            // array buffer offset
+        );
 
-	  // Draw the triangle !
-	  glDrawArrays(GL_TRIANGLES, 0, 6); // 3 indices starting at 0 -> 1 triangle
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+        glVertexAttribPointer(
+                1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
+                2,                                // size : U+V => 2
+                GL_FLOAT,                         // type
+                GL_FALSE,                         // normalized?
+                0,                                // stride
+                (void*)0                          // array buffer offset
+        );
 
-	  glDisableVertexAttribArray(0);
-	  glDisableVertexAttribArray(1);
+        // Draw the triangle !
+        glDrawArrays(GL_TRIANGLES, 0, 6); // 3 indices starting at 0 -> 1 triangle
 
-	  // Swap buffers
-	  glfwSwapBuffers();
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+
+        // Swap buffers
+        glfwSwapBuffers();
+      }
+      else if(frame.HasAudioFrame())
+      {
+        float duration = frame.GetVideoFrame().GetPresentationTime() - glfwGetTime();
+        if(duration > 0)
+          glfwSleep(duration);
+
+        ALuint buffer;
+        alGenBuffers(1, &buffer);
+        CHECK_ERROR();
+        alBufferData(buffer,
+                     AL_FORMAT_STEREO16,
+                     frame.GetAudioFrame().GetData(),
+                     frame.GetAudioFrame().GetDataSize(),
+                     frame.GetAudioFrame().GetSampleRate());
+        CHECK_ERROR();
+        alSourceQueueBuffers(source, 1, &buffer);
+        CHECK_ERROR();
+        int state;
+        alGetSourcei(source, AL_SOURCE_STATE, &state);
+        if(state != AL_PLAYING)
+        {
+          alSourcePlay(source);
+          CHECK_ERROR();
+        }
+      }
+
+      ALint processed;
+      ALuint buf;
+      alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);
+      while (processed--) {
+          alGetError();
+          alSourceUnqueueBuffers(source, 1, &buf);
+      }
 
 
 
@@ -243,7 +312,7 @@ int main(void)
            glfwGetWindowParam( GLFW_OPENED )  &&
            loader.IsFrameValid());
 
-  loader.CloseVideo();
+  loader.Close();
   glfwTerminate();
 
   // Cleanup VBO
@@ -251,6 +320,17 @@ int main(void)
   glDeleteBuffers(1, &uvbuffer);
   glDeleteTextures(1, &tex);
   glDeleteVertexArrays(1, &VertexArrayID);
+
+  alSourceStop(source);
+  CHECK_ERROR();
+  alDeleteSources(1, &source);
+  CHECK_ERROR();
+  //alDeleteBuffers(1, &buffer);
+  //CHECK_ERROR();
+  alcDestroyContext(context);
+  CHECK_ERROR();
+  alcCloseDevice(device);
+  CHECK_ERROR();
 
   return 0;
 }
