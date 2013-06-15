@@ -1,8 +1,5 @@
-#include <AL/al.h>
-#include <AL/alc.h>
-#include <AL/alext.h>
 #include <GL/glew.h>
-#include <GL/glfw.h>
+#include <GLFW//glfw3.h>
 #include <cstdio>
 #include <string>
 #include <fstream>
@@ -12,6 +9,10 @@
 #include <AudioFrame.h>
 #include <MediaFrame.h>
 #include <Misc.h>
+#include <ALContext.h>
+#include <ALSource.h>
+#include <thread>
+#include <queue>
 
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path)
 {
@@ -106,35 +107,12 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
   return ProgramID;
 }
 
-
-
-
-
-
-
-
-#define CHECK_ERROR() \
-  if ((error = alGetError()) != AL_NO_ERROR) { \
-    fprintf(stderr, "\n%d\n\n", error); \
-    GUL_ASSERT(false); \
-    return -1; \
-  }
-
-
-
-
 int main(void)
 {
-  int error;
-  ALCdevice* device = alcOpenDevice(NULL);
-  ALCcontext* context = alcCreateContext(device,NULL);
-  alcMakeContextCurrent(context);
-  alGetError();
-  ALuint source;
-  alGenSources(1,&source);
-  CHECK_ERROR();
-
-
+  gul::ALContext* contextAL  = new gul::ALContext();
+  contextAL->Initialize();
+  gul::ALSource* source = new gul::ALSource();
+  source->Initialize();
 
   // Initialise GLFW
   if( !glfwInit() )
@@ -143,17 +121,22 @@ int main(void)
           return -1;
   }
 
-  glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-  glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-  glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+
+  GLFWwindow* window = glfwCreateWindow( 1024, 768, "gulVideoPlayer", nullptr, nullptr );
 
   // Open a window and create its OpenGL context
-  if( !glfwOpenWindow( 1024, 768, 0,0,0,0, 32,0, GLFW_WINDOW ) )
+  if(window == nullptr)
   {
           fprintf( stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n" );
           glfwTerminate();
           return -1;
   }
+
+  glfwMakeContextCurrent(window);
 
   // Initialize GLEW
   glewExperimental = true; // Needed for core profile
@@ -162,10 +145,8 @@ int main(void)
           return -1;
   }
 
-  glfwSetWindowTitle( "Tutorial 02" );
-
   // Ensure we can capture the escape key being pressed below
-  glfwEnable( GLFW_STICKY_KEYS );
+  glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
   // Dark blue background
   glClearColor(0.0f, 0.0f, 0.4f, 0.0f);
@@ -213,21 +194,32 @@ int main(void)
   glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
   glBufferData(GL_ARRAY_BUFFER, sizeof(g_uv_buffer_data), g_uv_buffer_data, GL_STATIC_DRAW);
 
-  gul::MediaReader loader(gul::String("/home/pfeuti/Code/gul/test/data/video/firefly_long.mov"));
+  gul::MediaReader loader(gul::String("/home/pfeuti/Code/gul/test/data/video/firefly_long.mkv"));
   loader.Open();
-  gul::MediaFrame frame;
+  gul::MediaFrame frames[25];
+  std::queue<gul::MediaFrame*> freeFrame;
+  for(int i = 0; i < 25; ++i)
+    freeFrame.push(&frames[i]);
+  std::queue<gul::MediaFrame*> usedFrame;
 
-  int i = 0;
+  long duration;
   do
   {
-
-      loader.GetNext(frame);
-      if(frame.HasVideoFrame())
+    if(!freeFrame.empty())
+    {
+      gul::MediaFrame* f = freeFrame.front();
+      freeFrame.pop();
+      loader.GetNext(*f);
+      usedFrame.push(f);
+      if(f->HasVideoFrame())
       {
-          float duration = frame.GetVideoFrame().GetPresentationTime() - glfwGetTime();
+          duration = (f->GetVideoFrame().GetPresentationTime() - glfwGetTime())*1000;
           if(duration > 0)
+          {
+            std::chrono::milliseconds dura( duration );
+            std::this_thread::sleep_for( dura );
+          }
 
-            glfwSleep(duration);
         glClear( GL_COLOR_BUFFER_BIT );
 
         glUseProgram(programID);
@@ -238,7 +230,7 @@ int main(void)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0,GL_RGBA, frame.GetVideoFrame().GetWidth(), frame.GetVideoFrame().GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, frame.GetVideoFrame().GetDataConst());
+        glTexImage2D(GL_TEXTURE_2D, 0,GL_RGBA, f->GetVideoFrame().GetWidth(), f->GetVideoFrame().GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, f->GetVideoFrame().GetDataConst());
 
         glUniform1i(TextureID, 0);
 
@@ -272,48 +264,33 @@ int main(void)
         glDisableVertexAttribArray(1);
 
         // Swap buffers
-        glfwSwapBuffers();
+        glfwSwapBuffers(window);
       }
-      else if(frame.HasAudioFrame())
+      else if(f->HasAudioFrame())
       {
-        float duration = frame.GetVideoFrame().GetPresentationTime() - glfwGetTime();
-        if(duration > 0)
-          glfwSleep(duration);
-
-        ALuint buffer;
-        alGenBuffers(1, &buffer);
-        CHECK_ERROR();
-        alBufferData(buffer,
-                     AL_FORMAT_STEREO16,
-                     frame.GetAudioFrame().GetData(),
-                     frame.GetAudioFrame().GetDataSize(),
-                     frame.GetAudioFrame().GetSampleRate());
-        CHECK_ERROR();
-        alSourceQueueBuffers(source, 1, &buffer);
-        CHECK_ERROR();
-        int state;
-        alGetSourcei(source, AL_SOURCE_STATE, &state);
-        if(state != AL_PLAYING)
-        {
-          alSourcePlay(source);
-          CHECK_ERROR();
-        }
+        source->AddBuffer(f->GetAudioFrame().GetALBuffer());
+        source->Play();
       }
+    }
+    else
+    {
+      std::chrono::milliseconds dura( duration );
+      std::this_thread::sleep_for( dura );
+    }
 
-      ALint processed;
-      ALuint buf;
-      alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);
-      while (processed--) {
-          alGetError();
-          alSourceUnqueueBuffers(source, 1, &buf);
+    source->RemoveBuffers();
+    for(size_t i = 0; i < usedFrame.size(); ++i)
+    {
+      gul::MediaFrame* uf = usedFrame.front();
+      if(uf->HasVideoFrame() || (uf->HasAudioFrame() && source->IsBufferPlayed(uf->GetAudioFrame().GetALBuffer())))
+      {
+        usedFrame.pop();;
+        freeFrame.push(uf);
       }
+    }
 
-
-
-  } while( glfwGetKey( GLFW_KEY_ESC ) != GLFW_PRESS &&
-           glfwGetWindowParam( GLFW_OPENED )  &&
-           loader.IsFrameValid()
-           && i++ < 50);
+    glfwPollEvents();
+  } while(!glfwWindowShouldClose(window) && loader.IsFrameValid());
 
   loader.Close();
   glfwTerminate();
@@ -324,16 +301,9 @@ int main(void)
   glDeleteTextures(1, &tex);
   glDeleteVertexArrays(1, &VertexArrayID);
 
-  alSourceStop(source);
-  CHECK_ERROR();
-  alDeleteSources(1, &source);
-  CHECK_ERROR();
-  //alDeleteBuffers(1, &buffer);
-  //CHECK_ERROR();
-  alcDestroyContext(context);
-  CHECK_ERROR();
-  alcCloseDevice(device);
-  CHECK_ERROR();
+
+  delete source;
+  delete contextAL;
 
   return 0;
 }

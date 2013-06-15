@@ -1,0 +1,29 @@
+# CMake
+
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+install_manifest.txt
+build
+
+# C++ objects and libs
+
+*.slo
+*.lo
+*.o
+*.a
+*.la
+*.lai
+*.so
+*.dll
+*.dylib
+
+# Qt-es
+
+*.user
+*.user.*
+moc_*.cpp
+qrc_*.cpp
+Makefile
+*-build-*
