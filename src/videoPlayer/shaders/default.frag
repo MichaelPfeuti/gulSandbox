@@ -1,11 +1,11 @@
 #version 330 core
 
-// Ouput data
+in vec2 texCoord;
 out vec3 color;
+
+uniform sampler2D sampler;
 
 void main()
 {
-	// Output color = red 
-	color = vec3(1,0,0);
-
+  color = texture( sampler, texCoord ).rgb;
 }

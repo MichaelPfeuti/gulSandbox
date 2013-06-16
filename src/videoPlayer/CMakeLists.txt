@@ -1,14 +1,9 @@
-find_package(GLFW)
-include_directories(${GLFW_INCLUDE_DIR})
+gul_create_header(shaders/default.frag)
+gul_create_header(shaders/default.vert)
 
-find_package(GLEW)
-include_directories(${GLEW_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-find_package(OpenGL)
-include_directories(${OPENGL_INCLUDE_DIR})
-
-find_package(OpenAL)
-include_directories(${OPENAL_INCLUDE_DIR})
-
-add_executable(videoPlayer main.cpp)
-target_link_libraries(videoPlayer gul ${GLFW_LIBRARY} ${GLEW_LIBRARY} ${OPENGL_LIBRARY} ${OPENAL_LIBRARY})
+add_executable(videoPlayer main.cpp
+                           default_frag.h
+                           default_vert.h)
+target_link_libraries(videoPlayer gul)
